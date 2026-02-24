@@ -1,0 +1,38 @@
+{
+  "name": "hushlog",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Styled console logging for development environments",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3"
+  },
+  "keywords": [
+    "dev",
+    "logger",
+    "console",
+    "debug",
+    "hush",
+    "hushlog"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/madebygrant/hushlog.git"
+  },
+  "homepage": "https://github.com/madebygrant/hushlog#readme"
+}

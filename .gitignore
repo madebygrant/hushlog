@@ -1,0 +1,27 @@
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Build Artifacts ---
+# Adjust 'dist' to whatever your esbuild --outdir is
+dist/
+out/
+*.js.map
+
+# --- Environment/Secrets ---
+.env
+.env.local
+.env.*.local
+
+# --- macOS System Files ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# --- Logs/Debug ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
