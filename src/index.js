@@ -1,5 +1,18 @@
-const isDev =
-  typeof process !== "undefined" && process.env.NODE_ENV === "development";
+const isDev = (() => {
+  // Vite (browser + SSR)
+  if (typeof import.meta !== "undefined" && import.meta.env?.MODE) {
+    return import.meta.env.DEV;
+  }
+  // Node.js, webpack, Bun, Next.js, etc.
+  if (typeof process !== "undefined" && process.env?.NODE_ENV) {
+    return process.env.NODE_ENV === "development";
+  }
+  // Plain browser fallback (no bundler)
+  if (typeof window !== "undefined") {
+    return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  }
+  return false;
+})();
 
 // --- Styles ---
 
