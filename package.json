@@ -1,12 +1,13 @@
 {
   "name": "hushlog",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "Styled console logging for development environments",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
