@@ -1,15 +1,31 @@
+const isBrowser =
+  typeof window !== "undefined" && typeof window.document !== "undefined";
+
+const isWorker =
+  !isBrowser &&
+  typeof self !== "undefined" &&
+  typeof self.postMessage === "function";
+
 const isDev = (() => {
-  // Vite (browser + SSR)
-  if (typeof import.meta !== "undefined" && import.meta.env?.MODE) {
+  // Vite (browser + SSR) — import.meta always defined in ESM
+  if (import.meta.env?.MODE) {
     return import.meta.env.DEV;
   }
   // Node.js, webpack, Bun, Next.js, etc.
   if (typeof process !== "undefined" && process.env?.NODE_ENV) {
     return process.env.NODE_ENV === "development";
   }
-  // Plain browser fallback (no bundler)
-  if (typeof window !== "undefined") {
-    return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  // Deno
+  if (typeof Deno !== "undefined") {
+    return Deno.env.get("NODE_ENV") === "development";
+  }
+  // Plain browser — hostname check is last resort, after all env-based checks
+  if (isBrowser) {
+    return ["localhost", "127.0.0.1"].includes(window.location?.hostname ?? "");
+  }
+  // Web Worker
+  if (isWorker) {
+    return ["localhost", "127.0.0.1"].includes(self.location?.hostname ?? "");
   }
   return false;
 })();
@@ -29,18 +45,30 @@ function style(level) {
   return `${styles.base} ${styles[level]}`;
 }
 
+const consoleMethods = {
+  default: "log",
+  info: "info",
+  warn: "warn",
+  error: "error",
+  success: "log",
+};
+
 // --- Filter state ---
 
 let activeFilters = ["*"];
 
 export function setLogFilter(...filters) {
-  activeFilters = filters.length === 1 && filters[0] === null ? [] : filters;
+  if (filters.length === 0 || (filters.length === 1 && filters[0] === null)) {
+    activeFilters = filters.length === 0 ? ["*"] : [];
+  } else {
+    activeFilters = filters;
+  }
 }
 
 function isAllowed(prefix) {
   if (activeFilters.includes("*")) return true;
   if (activeFilters.length === 0) return false;
-  if (!prefix) return true;
+  if (!prefix) return activeFilters.includes("*");
   return activeFilters.includes(prefix);
 }
 
@@ -49,14 +77,29 @@ function isAllowed(prefix) {
 function print(level, args, prefix) {
   if (!isDev) return;
   if (!isAllowed(prefix)) return;
+  if (args.length === 0) return;
 
+  const fn = consoleMethods[level] ?? "log";
   const [first, ...rest] = args;
-  const label = prefix ? `[${prefix}] ${first ?? ""}` : first;
 
-  if (typeof first === "string" || prefix) {
-    console.log(`%c${label}`, style(level), ...rest);
+  if (isBrowser) {
+    if (prefix && typeof first === "string") {
+      console[fn](`%c[${prefix}] ${first}`, style(level), ...rest);
+    } else if (prefix) {
+      console[fn](`%c[${prefix}]`, style(level), ...args);
+    } else if (typeof first === "string") {
+      console[fn](`%c${first}`, style(level), ...rest);
+    } else {
+      console[fn](...args);
+    }
   } else {
-    console.log(...args);
+    if (prefix && typeof first === "string") {
+      console[fn](`[${prefix}] ${first}`, ...rest);
+    } else if (prefix) {
+      console[fn](`[${prefix}]`, ...args);
+    } else {
+      console[fn](...args);
+    }
   }
 }
 
@@ -82,23 +125,24 @@ export async function logGroup(
   callback,
   { collapsed = false, prefix } = {}
 ) {
-  if (!isDev) {
-    await callback();
-    return;
-  }
+  if (!isDev) return await callback();
 
   const title = prefix ? `[${prefix}] ${label}` : label;
+  const groupFn = collapsed ? "groupCollapsed" : "group";
+  const hasGroup = typeof console[groupFn] === "function";
 
-  if (collapsed) {
-    console.groupCollapsed(`%c${title}`, style("default"));
-  } else {
-    console.group(`%c${title}`, style("default"));
+  if (hasGroup) {
+    if (isBrowser) {
+      console[groupFn](`%c${title}`, style("default"));
+    } else {
+      console[groupFn](title);
+    }
   }
 
   try {
-    await callback();
+    return await callback();
   } finally {
-    console.groupEnd();
+    if (hasGroup) console.groupEnd();
   }
 }
 

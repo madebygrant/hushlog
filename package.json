@@ -11,8 +11,10 @@
       "require": "./dist/index.cjs"
     }
   },
+  "types": "./index.d.ts",
   "files": [
     "dist",
+    "index.d.ts",
     "README.md"
   ],
   "scripts": {
