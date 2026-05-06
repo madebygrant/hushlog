@@ -1,6 +1,6 @@
 # hushlog
 
-A lightweight, styled console logger that stays quiet in production and speaks up in development.
+Drop-in console logging for development. Zero output in production, scoped namespacing with runtime filtering — no setup required.
 
 ## Install
 
