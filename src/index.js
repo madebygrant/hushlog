@@ -15,9 +15,13 @@ const isDev = (() => {
   if (typeof process !== "undefined" && process.env?.NODE_ENV) {
     return process.env.NODE_ENV === "development";
   }
-  // Deno
+  // Deno — env access throws without --allow-env
   if (typeof Deno !== "undefined") {
-    return Deno.env.get("NODE_ENV") === "development";
+    try {
+      return Deno.env.get("NODE_ENV") === "development";
+    } catch {
+      return false;
+    }
   }
   // Plain browser — hostname check is last resort, after all env-based checks
   if (isBrowser) {
@@ -45,6 +49,26 @@ function style(level) {
   return `${styles.base} ${styles[level]}`;
 }
 
+const ansiColors = {
+  default: "\x1b[96m", // bright cyan
+  info: "\x1b[94m", // bright blue
+  warn: "\x1b[93m", // bright yellow
+  error: "\x1b[91m", // bright red
+  success: "\x1b[92m", // bright green
+};
+
+const ANSI_RESET = "\x1b[0m";
+
+const supportsAnsi =
+  !isBrowser &&
+  typeof process !== "undefined" &&
+  process.stdout?.isTTY === true &&
+  !process.env?.NO_COLOR;
+
+function paint(level, text) {
+  return supportsAnsi ? `${ansiColors[level]}${text}${ANSI_RESET}` : text;
+}
+
 const consoleMethods = {
   default: "log",
   info: "info",
@@ -58,17 +82,20 @@ const consoleMethods = {
 let activeFilters = ["*"];
 
 export function setLogFilter(...filters) {
-  if (filters.length === 0 || (filters.length === 1 && filters[0] === null)) {
-    activeFilters = filters.length === 0 ? ["*"] : [];
+  if (filters.length === 0) {
+    activeFilters = ["*"];
+  } else if (filters.length === 1 && filters[0] === null) {
+    activeFilters = [];
   } else {
-    activeFilters = filters;
+    activeFilters = filters.filter((f) => typeof f === "string" && f !== "");
   }
 }
 
 function isAllowed(prefix) {
   if (activeFilters.includes("*")) return true;
   if (activeFilters.length === 0) return false;
-  if (!prefix) return activeFilters.includes("*");
+  // Unprefixed logs are always shown unless everything is silenced
+  if (!prefix) return true;
   return activeFilters.includes(prefix);
 }
 
@@ -94,9 +121,11 @@ function print(level, args, prefix) {
     }
   } else {
     if (prefix && typeof first === "string") {
-      console[fn](`[${prefix}] ${first}`, ...rest);
+      console[fn](paint(level, `[${prefix}] ${first}`), ...rest);
     } else if (prefix) {
-      console[fn](`[${prefix}]`, ...args);
+      console[fn](paint(level, `[${prefix}]`), ...args);
+    } else if (typeof first === "string") {
+      console[fn](paint(level, first), ...rest);
     } else {
       console[fn](...args);
     }
@@ -125,7 +154,7 @@ export async function logGroup(
   callback,
   { collapsed = false, prefix } = {}
 ) {
-  if (!isDev) return await callback();
+  if (!isDev || !isAllowed(prefix)) return await callback();
 
   const title = prefix ? `[${prefix}] ${label}` : label;
   const groupFn = collapsed ? "groupCollapsed" : "group";
@@ -135,7 +164,7 @@ export async function logGroup(
     if (isBrowser) {
       console[groupFn](`%c${title}`, style("default"));
     } else {
-      console[groupFn](title);
+      console[groupFn](paint("default", title));
     }
   }
 

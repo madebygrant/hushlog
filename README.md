@@ -45,7 +45,7 @@ log.success("User saved!"); // Green  — confirmations, completed actions
 
 - **Zero output in production** — logs are automatically suppressed outside of development
 - **Five log levels** — distinct colour styling for each level
-- **Styled output** — messages are colour-highlighted in the console for easy scanning
+- **Styled output** — colour-highlighted in browser devtools, ANSI colours in Node terminals (respects `NO_COLOR`)
 - **Flexible arguments** — pass a string label, additional data, or any combination
 - **No dependencies** — tiny footprint, nothing extra installed
 - **ESM and CJS** — works in modern bundlers and Node.js out of the box
