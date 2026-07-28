@@ -1,0 +1,1130 @@
+<!doctype html>
+<html lang="en" data-env="development">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>hushlog — loud in dev, silent in prod</title>
+    <meta
+      name="description"
+      content="hushlog is a console logger for development. Styled, scoped output while you build; nothing at all once you ship."
+    />
+    <meta name="theme-color" content="#EDEBEF" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2317161C'/%3E%3Cpath d='M8 11h5v10H8z' fill='%235DE4C7'/%3E%3Cpath d='M15 15h9v2h-9z' fill='%235DE4C7' opacity='.45'/%3E%3C/svg%3E"
+    />
+
+    <meta property="og:title" content="hushlog" />
+    <meta
+      property="og:description"
+      content="Loud in dev. Silent in prod. A console logger that suppresses itself outside development."
+    />
+    <meta property="og:type" content="website" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300..700&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        /* --- Ground: a room with the lights low --- */
+        --paper: #edebef;
+        --paper-sunk: #e2dfe6;
+        --rule: #cfcbd6;
+        --ink: #17161c;
+        --ink-2: #201f28;
+        --ink-soft: #56525f;
+        --ink-faint: #8b8794;
+
+        /* --- Level colors, straight from src/index.js --- */
+        --lvl-default: #5de4c7;
+        --lvl-info: #80caff;
+        --lvl-warn: #f9c74f;
+        --lvl-error: #f94144;
+        --lvl-success: #90be6d;
+
+        /* Legible mint for the light ground */
+        --mint-deep: #0a6455;
+
+        --measure: 43rem;
+        --pad: clamp(1.25rem, 5vw, 2.5rem);
+
+        --f-display: "Martian Mono", ui-monospace, monospace;
+        --f-body: "Newsreader", Georgia, serif;
+        --f-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--f-body);
+        font-size: clamp(1.02rem, 0.4vw + 0.95rem, 1.14rem);
+        font-weight: 380;
+        line-height: 1.68;
+        font-optical-sizing: auto;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Faint horizontal banding — like a log file's alternating rows,
+         far enough back that it reads as texture, not pattern. */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(23, 22, 28, 0.022) 0 1px,
+          transparent 1px 6px
+        );
+      }
+
+      main,
+      .topbar,
+      .footer {
+        position: relative;
+        z-index: 1;
+      }
+
+      a {
+        color: var(--mint-deep);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 0.18em;
+      }
+
+      a:hover {
+        color: var(--ink);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--mint-deep);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+
+      /* ------------------------------------------------ topbar */
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.7rem var(--pad);
+        background: color-mix(in srgb, var(--paper) 88%, transparent);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .wordmark {
+        font-family: var(--f-display);
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        text-decoration: none;
+        color: var(--ink);
+      }
+
+      .wordmark .dim {
+        color: var(--ink-faint);
+        font-weight: 300;
+      }
+
+      .install {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.34rem 0.4rem 0.34rem 0.7rem;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink);
+        font-family: var(--f-mono);
+        font-size: 0.74rem;
+        cursor: pointer;
+        transition: border-color 0.18s, background 0.18s;
+      }
+
+      .install:hover {
+        border-color: var(--ink);
+        background: var(--paper-sunk);
+      }
+
+      .install-state {
+        color: var(--ink-faint);
+        font-size: 0.68rem;
+        min-width: 3.1rem;
+        text-align: right;
+      }
+
+      /* ------------------------------------------------ layout */
+
+      .col {
+        max-width: var(--measure);
+        margin-inline: auto;
+        padding-inline: var(--pad);
+      }
+
+      .band {
+        padding-block: clamp(3.25rem, 8vw, 5.5rem);
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .band:last-of-type {
+        border-bottom: 0;
+      }
+
+      .hero {
+        padding-block: clamp(3rem, 9vw, 6rem) clamp(2.5rem, 7vw, 4rem);
+        border-bottom: 1px solid var(--rule);
+      }
+
+      /* ------------------------------------------------ type */
+
+      h1 {
+        margin: 0;
+        font-family: var(--f-display);
+        font-size: clamp(1.95rem, 6.4vw, 3.6rem);
+        font-weight: 500;
+        line-height: 1.02;
+        letter-spacing: -0.055em;
+      }
+
+      h1 .quiet {
+        color: var(--ink-faint);
+        font-weight: 300;
+      }
+
+      h2 {
+        margin: 0 0 0.9rem;
+        font-family: var(--f-display);
+        font-size: clamp(1.24rem, 2.6vw, 1.6rem);
+        font-weight: 500;
+        line-height: 1.15;
+        letter-spacing: -0.045em;
+      }
+
+      h3 {
+        margin: 0 0 0.35rem;
+        font-family: var(--f-mono);
+        font-size: 0.94rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .eyebrow {
+        margin: 0 0 1.4rem;
+        font-family: var(--f-mono);
+        font-size: 0.68rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: var(--ink-faint);
+      }
+
+      .lede {
+        margin: 1.5rem 0 0;
+        max-width: 34rem;
+        font-size: 1.16em;
+        color: var(--ink-soft);
+      }
+
+      p {
+        margin: 0 0 1rem;
+      }
+
+      p:last-child {
+        margin-bottom: 0;
+      }
+
+      .note {
+        font-size: 0.94em;
+        color: var(--ink-soft);
+      }
+
+      code,
+      pre,
+      .console-body {
+        /* Code should read exactly as it would be typed */
+        font-variant-ligatures: none;
+      }
+
+      code:not(pre code) {
+        font-family: var(--f-mono);
+        font-size: 0.86em;
+        padding: 0.08em 0.24em;
+        border-radius: 3px;
+        background: var(--paper-sunk);
+      }
+
+      /* ------------------------------------------------ env switch */
+
+      .switch {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.65rem 0.9rem;
+        margin: 2.4rem 0 0.9rem;
+      }
+
+      .switch-label {
+        font-family: var(--f-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.06em;
+        color: var(--ink-faint);
+      }
+
+      .seg {
+        display: inline-flex;
+        padding: 3px;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        background: var(--paper-sunk);
+      }
+
+      .seg button {
+        padding: 0.44rem 0.95rem;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink-soft);
+        font-family: var(--f-mono);
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+      }
+
+      .seg button:hover {
+        color: var(--ink);
+      }
+
+      .seg button[aria-pressed="true"] {
+        background: var(--ink);
+        color: var(--paper);
+      }
+
+      /* ------------------------------------------------ console */
+
+      .console {
+        margin: 1.15rem 0 0;
+        border-radius: 9px;
+        background: var(--ink);
+        overflow: hidden;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5),
+          0 14px 30px -18px rgba(23, 22, 28, 0.55);
+      }
+
+      .console-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.5rem 0.85rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+        font-family: var(--f-mono);
+        font-size: 0.68rem;
+        color: var(--ink-faint);
+      }
+
+      .console-bar .env {
+        color: color-mix(in srgb, var(--lvl-default) 70%, var(--ink-faint));
+      }
+
+      [data-env="production"] .console-bar .env {
+        color: var(--ink-faint);
+      }
+
+      .console-body {
+        margin: 0;
+        padding: 0.85rem 0.85rem 0.95rem;
+        overflow-x: auto;
+        font-family: var(--f-mono);
+        font-size: clamp(0.72rem, 2.1vw, 0.82rem);
+        line-height: 1.78;
+        color: #d8d5de;
+      }
+
+      .line {
+        display: block;
+        white-space: pre;
+      }
+
+      .line.is-hidden {
+        display: none;
+      }
+
+      .line .prefix {
+        opacity: 0.72;
+      }
+
+      .line .data {
+        color: #8e8a99;
+      }
+
+      .lvl-default {
+        color: var(--lvl-default);
+      }
+      .lvl-info {
+        color: var(--lvl-info);
+      }
+      .lvl-warn {
+        color: var(--lvl-warn);
+      }
+      .lvl-error {
+        color: var(--lvl-error);
+      }
+      .lvl-success {
+        color: var(--lvl-success);
+      }
+
+      .hushed {
+        display: block;
+        color: #605c6b;
+        font-style: normal;
+      }
+
+      .caret {
+        display: inline-block;
+        width: 0.5em;
+        height: 1.02em;
+        margin-left: 0.1em;
+        vertical-align: -0.18em;
+        background: var(--lvl-default);
+        animation: blink 1.15s steps(1) infinite;
+      }
+
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      /* Log lines arrive the way real output does: one after another. */
+      .line.print {
+        animation: arrive 0.34s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        animation-delay: calc(var(--i, 0) * 85ms);
+      }
+
+      @keyframes arrive {
+        from {
+          opacity: 0;
+          transform: translateY(-0.3em);
+        }
+      }
+
+      /* group demo */
+
+      .group-head {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #d8d5de;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .group-head:hover {
+        color: #fff;
+      }
+
+      .group-head .tri {
+        display: inline-block;
+        width: 0.7em;
+        color: var(--ink-faint);
+        transition: transform 0.18s ease;
+      }
+
+      .group-head[aria-expanded="false"] .tri {
+        transform: rotate(-90deg);
+      }
+
+      .group-body {
+        padding-left: 1.35rem;
+        border-left: 1px solid rgba(255, 255, 255, 0.09);
+        margin-left: 0.28em;
+      }
+
+      .group-head[aria-expanded="false"] + .group-body {
+        display: none;
+      }
+
+      /* ------------------------------------------------ code blocks */
+
+      pre {
+        margin: 1.15rem 0 0;
+        padding: 0.95rem 1rem;
+        border-radius: 9px;
+        background: var(--ink-2);
+        overflow-x: auto;
+        font-family: var(--f-mono);
+        font-size: clamp(0.72rem, 2.1vw, 0.81rem);
+        line-height: 1.72;
+        color: #d8d5de;
+      }
+
+      .t-key {
+        color: #c6a0f6;
+      }
+      .t-fn {
+        color: var(--lvl-default);
+      }
+      .t-str {
+        color: var(--lvl-warn);
+      }
+      .t-com {
+        color: #6e6a79;
+      }
+      .t-pun {
+        color: #8e8a99;
+      }
+      .t-num {
+        color: var(--lvl-info);
+      }
+
+      /* ------------------------------------------------ levels reference */
+
+      .levels {
+        margin: 1.6rem 0 0;
+        border-top: 1px solid var(--rule);
+      }
+
+      .level {
+        display: grid;
+        grid-template-columns: 0.85rem 9.4rem 1fr;
+        align-items: baseline;
+        gap: 0 0.85rem;
+        padding: 0.72rem 0;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .swatch {
+        width: 0.62rem;
+        height: 0.62rem;
+        border-radius: 2px;
+        transform: translateY(-0.1em);
+        transition: background 0.35s ease;
+      }
+
+      .level code {
+        font-family: var(--f-mono);
+        font-size: 0.79rem;
+        padding: 0;
+        background: none;
+        white-space: nowrap;
+      }
+
+      .level span:last-child {
+        font-size: 0.96em;
+        color: var(--ink-soft);
+      }
+
+      [data-env="production"] .swatch {
+        background: var(--rule) !important;
+      }
+
+      /* ------------------------------------------------ chips */
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: 1.3rem 0 0;
+      }
+
+      .chip {
+        padding: 0.35rem 0.7rem;
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink-soft);
+        font-family: var(--f-mono);
+        font-size: 0.72rem;
+        cursor: pointer;
+        transition: border-color 0.18s, color 0.18s, background 0.18s;
+      }
+
+      .chip:hover {
+        border-color: var(--ink);
+        color: var(--ink);
+      }
+
+      .chip[aria-pressed="true"] {
+        border-color: var(--ink);
+        background: var(--ink);
+        color: var(--paper);
+      }
+
+      /* ------------------------------------------------ runs-anywhere */
+
+      .runs {
+        display: grid;
+        gap: 1.5rem 2rem;
+        margin: 1.7rem 0 0;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+      }
+
+      .runs h3 {
+        color: var(--ink);
+      }
+
+      .runs p {
+        font-size: 0.95em;
+        color: var(--ink-soft);
+      }
+
+      /* ------------------------------------------------ api */
+
+      .api {
+        margin: 1.6rem 0 0;
+        border-top: 1px solid var(--rule);
+      }
+
+      .api-row {
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .api-row > code {
+        display: inline-block;
+        margin-bottom: 0.3rem;
+        padding: 0;
+        background: none;
+        font-family: var(--f-mono);
+        font-size: 0.84rem;
+        font-weight: 600;
+      }
+
+      .api-row p {
+        margin: 0;
+        font-size: 0.96em;
+        color: var(--ink-soft);
+      }
+
+      /* ------------------------------------------------ footer */
+
+      .footer {
+        padding: 2rem var(--pad) 3rem;
+        border-top: 1px solid var(--rule);
+        font-family: var(--f-mono);
+        font-size: 0.72rem;
+        color: var(--ink-faint);
+      }
+
+      .footer-inner {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem 1.4rem;
+        align-items: baseline;
+        max-width: var(--measure);
+        margin-inline: auto;
+      }
+
+      .footer a {
+        color: var(--ink-soft);
+        text-decoration: none;
+      }
+
+      .footer a:hover {
+        color: var(--ink);
+        text-decoration: underline;
+      }
+
+      .footer .spacer {
+        flex: 1;
+      }
+
+      /* ------------------------------------------------ motion */
+
+      @media (prefers-reduced-motion: reduce) {
+        .line.print {
+          animation: none;
+        }
+        .caret {
+          animation: none;
+        }
+        * {
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media (max-width: 30rem) {
+        .level {
+          grid-template-columns: 0.85rem 1fr;
+        }
+        .level span:last-child {
+          grid-column: 2;
+        }
+        .install-state {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="topbar">
+      <a class="wordmark" href="#top">hushlog<span class="dim"> 1.2.2</span></a>
+      <button class="install" id="copy" type="button">
+        npm install hushlog
+        <span class="install-state" id="copy-state">copy</span>
+      </button>
+    </header>
+
+    <main id="top">
+      <section class="hero col">
+        <p class="eyebrow">console logger · zero dependencies</p>
+        <h1>Loud in dev.<br /><span class="quiet">Silent in prod.</span></h1>
+        <p class="lede">
+          hushlog prints styled, scoped output while you build, and nothing at
+          all once you ship. No flags, no build step, no stripping imports back
+          out.
+        </p>
+
+        <div class="switch">
+          <span class="switch-label">NODE_ENV</span>
+          <div class="seg" role="group" aria-label="Environment">
+            <button type="button" data-env-set="development" aria-pressed="true">
+              development
+            </button>
+            <button type="button" data-env-set="production" aria-pressed="false">
+              production
+            </button>
+          </div>
+        </div>
+
+        <div class="console" data-console="hero">
+          <div class="console-bar">
+            <span>console</span>
+            <span><span class="env">development</span> · <span data-count>0 lines</span></span>
+          </div>
+          <div class="console-body" data-body aria-live="polite"></div>
+        </div>
+
+        <p class="note" style="margin-top: 1.15rem">
+          Flip the switch. Every console on this page goes quiet, because that is
+          the whole library.
+        </p>
+      </section>
+
+      <section class="band col">
+        <p class="eyebrow">levels</p>
+        <h2>Five levels, five colors</h2>
+        <p>
+          Each level maps to its matching console method, so devtools filtering
+          and stack traces keep working. Color is the only thing hushlog adds.
+        </p>
+
+        <div class="levels">
+          <div class="level">
+            <span class="swatch" style="background: var(--lvl-default)"></span>
+            <code>log()</code>
+            <span>General output</span>
+          </div>
+          <div class="level">
+            <span class="swatch" style="background: var(--lvl-info)"></span>
+            <code>log.info()</code>
+            <span>Informational messages</span>
+          </div>
+          <div class="level">
+            <span class="swatch" style="background: var(--lvl-warn)"></span>
+            <code>log.warn()</code>
+            <span>Warnings, deprecations</span>
+          </div>
+          <div class="level">
+            <span class="swatch" style="background: var(--lvl-error)"></span>
+            <code>log.error()</code>
+            <span>Errors, failures</span>
+          </div>
+          <div class="level">
+            <span class="swatch" style="background: var(--lvl-success)"></span>
+            <code>log.success()</code>
+            <span>Confirmations, completed actions</span>
+          </div>
+        </div>
+
+        <pre><span class="t-key">import</span> <span class="t-pun">{</span> log <span class="t-pun">}</span> <span class="t-key">from</span> <span class="t-str">"hushlog"</span><span class="t-pun">;</span>
+
+<span class="t-fn">log</span><span class="t-pun">(</span><span class="t-str">"Fetching user:"</span><span class="t-pun">,</span> id<span class="t-pun">);</span>
+log<span class="t-pun">.</span><span class="t-fn">warn</span><span class="t-pun">(</span><span class="t-str">"Token expiring soon"</span><span class="t-pun">);</span>
+log<span class="t-pun">.</span><span class="t-fn">success</span><span class="t-pun">(</span><span class="t-str">"User saved"</span><span class="t-pun">);</span></pre>
+      </section>
+
+      <section class="band col">
+        <p class="eyebrow">scopes</p>
+        <h2>Name the source once</h2>
+        <p>
+          <code>logScope</code> returns a logger with all five levels attached
+          and a prefix baked in, so you never hand-write the module name into a
+          message again.
+        </p>
+
+        <pre><span class="t-key">import</span> <span class="t-pun">{</span> logScope <span class="t-pun">}</span> <span class="t-key">from</span> <span class="t-str">"hushlog"</span><span class="t-pun">;</span>
+
+<span class="t-key">const</span> log <span class="t-pun">=</span> <span class="t-fn">logScope</span><span class="t-pun">(</span><span class="t-str">"auth"</span><span class="t-pun">);</span>
+
+<span class="t-fn">log</span><span class="t-pun">(</span><span class="t-str">"User signed in:"</span><span class="t-pun">,</span> user<span class="t-pun">);</span>
+log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun">(</span><span class="t-str">"Invalid credentials"</span><span class="t-pun">);</span></pre>
+
+        <div class="console" data-console="scope">
+          <div class="console-bar">
+            <span>console</span>
+            <span><span class="env">development</span> · <span data-count>0 lines</span></span>
+          </div>
+          <div class="console-body" data-body></div>
+        </div>
+      </section>
+
+      <section class="band col">
+        <p class="eyebrow">filters</p>
+        <h2>Narrow the noise at runtime</h2>
+        <p>
+          <code>setLogFilter</code> decides which prefixes speak, without
+          touching a line of code. Unprefixed logs from the default
+          <code>log</code> always come through — until you silence everything.
+        </p>
+
+        <div class="chips" role="group" aria-label="Active filter">
+          <button class="chip" type="button" data-filter="*" aria-pressed="true">
+            setLogFilter("*")
+          </button>
+          <button class="chip" type="button" data-filter="auth" aria-pressed="false">
+            "auth"
+          </button>
+          <button class="chip" type="button" data-filter="auth,api" aria-pressed="false">
+            "auth", "api"
+          </button>
+          <button class="chip" type="button" data-filter="null" aria-pressed="false">
+            null
+          </button>
+        </div>
+
+        <div class="console" data-console="filter">
+          <div class="console-bar">
+            <span>console</span>
+            <span><span class="env">development</span> · <span data-count>0 lines</span></span>
+          </div>
+          <div class="console-body" data-body></div>
+        </div>
+      </section>
+
+      <section class="band col">
+        <p class="eyebrow">groups</p>
+        <h2>Keep a sequence together</h2>
+        <p>
+          <code>logGroup</code> wraps related output in a collapsible block. It
+          is async-aware: the group stays open until your callback resolves, and
+          closes even if the callback throws.
+        </p>
+
+        <pre><span class="t-key">await</span> <span class="t-fn">logGroup</span><span class="t-pun">(</span><span class="t-str">"Load config"</span><span class="t-pun">,</span> <span class="t-key">async</span> <span class="t-pun">() =&gt; {</span>
+  <span class="t-key">const</span> config <span class="t-pun">=</span> <span class="t-key">await</span> <span class="t-fn">fetchConfig</span><span class="t-pun">();</span>
+  log<span class="t-pun">.</span><span class="t-fn">success</span><span class="t-pun">(</span><span class="t-str">"Config loaded:"</span><span class="t-pun">,</span> config<span class="t-pun">);</span>
+<span class="t-pun">}, {</span> collapsed<span class="t-pun">:</span> <span class="t-key">false</span> <span class="t-pun">});</span></pre>
+
+        <div class="console" data-console="group">
+          <div class="console-bar">
+            <span>console</span>
+            <span><span class="env">development</span> · <span data-count>0 lines</span></span>
+          </div>
+          <div class="console-body" data-body></div>
+        </div>
+      </section>
+
+      <section class="band col">
+        <p class="eyebrow">environment</p>
+        <h2>It works out what dev means</h2>
+        <p>
+          hushlog checks for development in the order your tooling is likely to
+          report it, then falls back to the host it is running on.
+        </p>
+
+        <div class="runs">
+          <div>
+            <h3>Bundlers</h3>
+            <p>
+              Vite reads <code>import.meta.env.DEV</code>. Next.js, webpack, Bun
+              and Node read <code>process.env.NODE_ENV</code>.
+            </p>
+          </div>
+          <div>
+            <h3>Deno</h3>
+            <p>
+              Reads <code>NODE_ENV</code> when env access is granted, and stays
+              quiet rather than throwing when it is not.
+            </p>
+          </div>
+          <div>
+            <h3>Plain browsers &amp; workers</h3>
+            <p>
+              With no bundler in the picture, a
+              <code>localhost</code> hostname counts as development.
+            </p>
+          </div>
+          <div>
+            <h3>Terminals</h3>
+            <p>
+              Devtools get <code>%c</code> styling; Node TTYs get ANSI color and
+              honour <code>NO_COLOR</code>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band col">
+        <p class="eyebrow">reference</p>
+        <h2>The whole API</h2>
+
+        <div class="api">
+          <div class="api-row">
+            <code>log(message?, ...args)</code>
+            <p>
+              Default logger. <code>.info</code>, <code>.warn</code>,
+              <code>.error</code> and <code>.success</code> share the signature.
+            </p>
+          </div>
+          <div class="api-row">
+            <code>logScope(prefix)</code>
+            <p>
+              Returns a logger that tags every message with
+              <code>[prefix]</code>.
+            </p>
+          </div>
+          <div class="api-row">
+            <code>setLogFilter(...prefixes)</code>
+            <p>
+              Pass prefixes to allow, <code>"*"</code> for everything, or
+              <code>null</code> to silence output entirely.
+            </p>
+          </div>
+          <div class="api-row">
+            <code>logGroup(label, callback, options?)</code>
+            <p>
+              Groups the callback's output. Options are
+              <code>collapsed</code> and <code>prefix</code>. Returns the
+              callback's result.
+            </p>
+          </div>
+        </div>
+
+        <pre><span class="t-com">// Named and default imports both work</span>
+<span class="t-key">import</span> log<span class="t-pun">,</span> <span class="t-pun">{</span> logScope<span class="t-pun">,</span> logGroup<span class="t-pun">,</span> setLogFilter <span class="t-pun">}</span> <span class="t-key">from</span> <span class="t-str">"hushlog"</span><span class="t-pun">;</span></pre>
+
+        <p class="note" style="margin-top: 1.3rem">
+          Ships as ESM and CommonJS with hand-written TypeScript types. No
+          dependencies.
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <span>hushlog 1.2.2</span>
+        <a href="https://www.npmjs.com/package/hushlog">npm</a>
+        <a href="https://github.com/madebygrant/hushlog">GitHub</a>
+        <span class="spacer"></span>
+        <span>MIT · by Grant Deelstra</span>
+      </div>
+    </footer>
+
+    <script>
+      (() => {
+        const root = document.documentElement;
+
+        /* Each live console is a set of log lines plus how to render them.
+           Production renders the hushed state instead. */
+        const SESSIONS = {
+          hero: [
+            { level: "info", prefix: "auth", text: "Signing in user 4102" },
+            { level: "success", prefix: "auth", text: "Session established" },
+            { level: "default", prefix: "api", text: "GET /api/user/4102" },
+            {
+              level: "info",
+              prefix: "api",
+              text: "Cache hit: user:4102",
+              data: '{ plan: "team", seats: 12 }',
+            },
+            { level: "default", text: "Rendering dashboard" },
+            { level: "warn", prefix: "api", text: "Rate limit at 82%" },
+            { level: "error", prefix: "auth", text: "Refresh token expired" },
+          ],
+          scope: [
+            {
+              level: "default",
+              prefix: "auth",
+              text: "User signed in:",
+              data: '{ id: 4102, email: "ada@example.com" }',
+            },
+            { level: "error", prefix: "auth", text: "Invalid credentials" },
+          ],
+          filter: [
+            { level: "default", prefix: "auth", text: "Session established" },
+            { level: "info", prefix: "api", text: "GET /api/user/4102" },
+            { level: "warn", prefix: "store", text: "Cart out of sync" },
+            { level: "default", text: "Unprefixed log from the default logger" },
+          ],
+          group: [
+            {
+              group: "Load config",
+              lines: [
+                { level: "default", text: "Requesting /config.json" },
+                { level: "info", text: "Etag: 9f2a-cached" },
+                {
+                  level: "success",
+                  text: "Config loaded:",
+                  data: "{ theme: 3, flags: 7 }",
+                },
+              ],
+            },
+          ],
+        };
+
+        const esc = (s) =>
+          s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        const lineHTML = (l, i) => {
+          const prefix = l.prefix
+            ? `<span class="prefix">[${esc(l.prefix)}] </span>`
+            : "";
+          const data = l.data ? `<span class="data"> ${esc(l.data)}</span>` : "";
+          return `<span class="line print lvl-${l.level}" style="--i:${i}" data-prefix="${
+            l.prefix || ""
+          }">${prefix}${esc(l.text)}${data}</span>`;
+        };
+
+        /* setLogFilter semantics, mirrored from src/index.js:
+           "*" allows all; empty allows nothing; unprefixed always passes. */
+        let filters = ["*"];
+        const isAllowed = (prefix) => {
+          if (filters.includes("*")) return true;
+          if (filters.length === 0) return false;
+          if (!prefix) return true;
+          return filters.includes(prefix);
+        };
+
+        const consoles = [...document.querySelectorAll("[data-console]")];
+
+        function render(el) {
+          const name = el.dataset.console;
+          const body = el.querySelector("[data-body]");
+          const count = el.querySelector("[data-count]");
+          const envLabel = el.querySelector(".env");
+          const prod = root.dataset.env === "production";
+
+          envLabel.textContent = prod ? "production" : "development";
+
+          if (prod) {
+            body.innerHTML =
+              '<span class="hushed">production — output suppressed</span>';
+            count.textContent = "0 lines";
+            return;
+          }
+
+          let i = 0;
+          let visible = 0;
+          let html = "";
+
+          for (const item of SESSIONS[name]) {
+            if (item.group) {
+              const inner = item.lines
+                .map((l) => lineHTML(l, i++))
+                .join("");
+              visible += item.lines.length;
+              html +=
+                `<button class="group-head line print lvl-default" style="--i:${i++}" aria-expanded="true">` +
+                `<span class="tri">▾</span>${esc(item.group)}</button>` +
+                `<span class="group-body">${inner}</span>`;
+              continue;
+            }
+            if (!isAllowed(item.prefix)) continue;
+            html += lineHTML(item, i++);
+            visible++;
+          }
+
+          if (visible === 0) {
+            html = '<span class="hushed">filtered — nothing to print</span>';
+          } else {
+            html += '<span class="line"><span class="caret"></span></span>';
+          }
+
+          body.innerHTML = html;
+          count.textContent = visible === 1 ? "1 line" : `${visible} lines`;
+        }
+
+        const renderAll = () => consoles.forEach(render);
+
+        /* Environment switch — the one control that matters */
+        document.querySelectorAll("[data-env-set]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            root.dataset.env = btn.dataset.envSet;
+            document
+              .querySelectorAll("[data-env-set]")
+              .forEach((b) =>
+                b.setAttribute(
+                  "aria-pressed",
+                  String(b.dataset.envSet === btn.dataset.envSet)
+                )
+              );
+            renderAll();
+          });
+        });
+
+        document.querySelectorAll(".chip").forEach((chip) => {
+          chip.addEventListener("click", () => {
+            const raw = chip.dataset.filter;
+            filters = raw === "null" ? [] : raw.split(",");
+            document
+              .querySelectorAll(".chip")
+              .forEach((c) =>
+                c.setAttribute("aria-pressed", String(c === chip))
+              );
+            render(document.querySelector('[data-console="filter"]'));
+          });
+        });
+
+        document.addEventListener("click", (e) => {
+          const head = e.target.closest(".group-head");
+          if (!head) return;
+          const open = head.getAttribute("aria-expanded") === "true";
+          head.setAttribute("aria-expanded", String(!open));
+          head.querySelector(".tri").textContent = open ? "▸" : "▾";
+        });
+
+        const copyBtn = document.getElementById("copy");
+        const copyState = document.getElementById("copy-state");
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText("npm install hushlog");
+            copyState.textContent = "copied";
+          } catch {
+            copyState.textContent = "select it";
+          }
+          setTimeout(() => (copyState.textContent = "copy"), 1600);
+        });
+
+        renderAll();
+      })();
+    </script>
+  </body>
+</html>
