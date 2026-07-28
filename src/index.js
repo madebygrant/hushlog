@@ -201,17 +201,16 @@ function createMethods(prefix, target) {
   return logger;
 }
 
-export function logScope(prefix, { target = "dev" } = {}) {
+export function logScope(prefix, options) {
+  const { target = "dev" } = options ?? {};
   return createMethods(prefix, target);
 }
 
 // --- Group ---
 
-export async function logGroup(
-  label,
-  callback,
-  { collapsed = false, prefix, target = "dev" } = {}
-) {
+export async function logGroup(label, callback, options) {
+  const { collapsed = false, prefix, target = "dev" } = options ?? {};
+
   if (!reaches(target, prefix) || !isAllowed(prefix)) return await callback();
 
   const title = prefix ? `[${prefix}] ${label}` : label;

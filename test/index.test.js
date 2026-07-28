@@ -123,6 +123,24 @@ test("logGroup respects filter but still runs callback", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("logScope tolerates a non-object options argument", () => {
+  for (const options of [null, undefined, 0, "server", true]) {
+    logScope("auth", options)("signed in");
+  }
+  assert.equal(calls.length, 5);
+  assert.deepEqual(calls[0].args, ["[auth] signed in"]);
+});
+
+test("logGroup tolerates a non-object options argument", async () => {
+  for (const options of [null, undefined, 0, "collapsed", true]) {
+    assert.equal(await logGroup("Fetch", () => "ok", options), "ok");
+  }
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["group", "group", "group", "group", "group"]
+  );
+});
+
 test("logGroup awaits async callbacks", async () => {
   const result = await logGroup("Load", async () => {
     await new Promise((r) => setTimeout(r, 5));
