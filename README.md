@@ -220,18 +220,47 @@ import { log, logScope, logGroup, setLogFilter } from "hushlog";
 
 ## How It Works
 
-`hushlog` checks `process.env.NODE_ENV` at runtime. If it equals `"development"`, your logs are printed to the console with styled formatting. In any other environment — production, test, staging — the function exits silently.
+`hushlog` works out whether you are in development at runtime, checking in this order:
 
-No tree-shaking required, no build flags, no setup.
+1. `import.meta.env.DEV` — Vite, in the browser and during SSR
+2. `process.env.NODE_ENV === "development"` — Node.js, Next.js, webpack, Bun
+3. `NODE_ENV` via `Deno.env` — skipped without `--allow-env` rather than throwing
+4. A `localhost` hostname — plain browsers and web workers with no bundler
+
+If none of those say development, every method returns before touching the console. No build flags, no setup.
+
+**Silent, not stripped.** Suppression happens at runtime, so hushlog and your log messages still ship in the production bundle — they are simply never printed. Removing them entirely takes a build-time transform of your own call sites; with esbuild, Rollup or Vite you can mark the calls as side-effect free so the minifier drops them:
+
+```js
+// vite.config.js
+export default {
+  esbuild: {
+    pure: ["log", "log.info", "log.warn", "log.error", "log.success"],
+  },
+};
+```
+
+Keep secrets out of log messages either way.
 
 ## Environment Compatibility
 
-Works with any environment that sets `NODE_ENV`, including:
+Verified against:
 
 - [Vite](https://vitejs.dev)
-- [Next.js](https://nextjs.org)
+- [Next.js](https://nextjs.org) — including Next 16 with Turbopack, server and client components
 - [Webpack](https://webpack.js.org)
-- Node.js
+- Node.js, Bun, Deno
+- Plain browsers and web workers
+
+### Colour in terminals
+
+Browser devtools get `%c` styling. Node prints ANSI colour when stdout is a TTY.
+
+| Variable            | Effect                                                      |
+| ------------------- | ----------------------------------------------------------- |
+| `FORCE_COLOR`       | Enables colour even when output is piped — Docker, CI, hosted log collectors |
+| `FORCE_COLOR=0`     | Disables colour                                             |
+| `NO_COLOR`          | Disables colour, and wins over `FORCE_COLOR`                |
 
 ## License
 

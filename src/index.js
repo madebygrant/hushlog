@@ -59,11 +59,18 @@ const ansiColors = {
 
 const ANSI_RESET = "\x1b[0m";
 
-const supportsAnsi =
-  !isBrowser &&
-  typeof process !== "undefined" &&
-  process.stdout?.isTTY === true &&
-  !process.env?.NO_COLOR;
+const supportsAnsi = (() => {
+  if (isBrowser || typeof process === "undefined") return false;
+  const env = process.env ?? {};
+  if (env.FORCE_COLOR === "0") return false;
+  if (env.NO_COLOR) return false;
+  /*
+   * Piped output — Docker, CI, hosted log collectors — has no TTY but still
+   * renders ANSI, so FORCE_COLOR opts in explicitly.
+   */
+  if (env.FORCE_COLOR !== undefined) return true;
+  return process.stdout?.isTTY === true;
+})();
 
 function paint(level, text) {
   return supportsAnsi ? `${ansiColors[level]}${text}${ANSI_RESET}` : text;
