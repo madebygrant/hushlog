@@ -1,8 +1,8 @@
 {
   "name": "hushlog",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
-  "description": "Styled console logging for development environments",
+  "description": "Styled console logging for development, with opt-in server-only logs in production",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "exports": {

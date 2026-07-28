@@ -6,6 +6,16 @@ const isWorker =
   typeof self !== "undefined" &&
   typeof self.postMessage === "function";
 
+/*
+ * Service workers have no window and no self.postMessage, so the two checks
+ * above both miss them — they need naming explicitly to stay client-side.
+ */
+const isServiceWorker =
+  !isBrowser &&
+  typeof self !== "undefined" &&
+  (typeof ServiceWorkerGlobalScope !== "undefined" ||
+    typeof self.registration === "object");
+
 const isDev = (() => {
   // Vite (browser + SSR) — import.meta always defined in ESM
   if (import.meta.env?.MODE) {
@@ -32,6 +42,19 @@ const isDev = (() => {
     return ["localhost", "127.0.0.1"].includes(self.location?.hostname ?? "");
   }
   return false;
+})();
+
+/*
+ * Deploy-level master switch for production server logging. Known client
+ * scopes are excluded by name, then gated on positive evidence of a server
+ * runtime: process.versions.node is never synthesised by a bundler, so any
+ * browser-side scope the exclusions miss fails here too.
+ */
+const serverProdLogging = (() => {
+  if (isBrowser || isWorker || isServiceWorker) return false;
+  if (typeof process === "undefined" || !process.versions?.node) return false;
+  const flag = process.env?.HUSHLOG_SERVER;
+  return flag === "1" || flag === "true";
 })();
 
 // --- Styles ---
@@ -98,6 +121,34 @@ export function setLogFilter(...filters) {
   }
 }
 
+/* null = no override; loggers fall back to their own target */
+let serverScopes = null;
+
+export function setServerLogScopes(...prefixes) {
+  if (prefixes.length === 1 && prefixes[0] === null) {
+    serverScopes = [];
+    return;
+  }
+  const clean = prefixes.filter((p) => typeof p === "string" && p !== "");
+  /*
+   * An all-invalid argument list clears the override instead of silencing
+   * everything — a typo should not take production logging down quietly.
+   * Use setServerLogScopes(null) to silence deliberately.
+   */
+  serverScopes = clean.length === 0 ? null : clean;
+}
+
+/*
+ * Whether a log reaches output at all, before prefix filtering. Production
+ * browsers are never reachable — that invariant holds regardless of target.
+ */
+function reaches(target, prefix) {
+  if (isDev) return true;
+  if (!serverProdLogging) return false;
+  if (serverScopes) return serverScopes.includes(prefix);
+  return target === "server";
+}
+
 function isAllowed(prefix) {
   if (activeFilters.includes("*")) return true;
   if (activeFilters.length === 0) return false;
@@ -108,8 +159,8 @@ function isAllowed(prefix) {
 
 // --- Core print ---
 
-function print(level, args, prefix) {
-  if (!isDev) return;
+function print(level, args, prefix, target) {
+  if (!reaches(target, prefix)) return;
   if (!isAllowed(prefix)) return;
   if (args.length === 0) return;
 
@@ -141,17 +192,17 @@ function print(level, args, prefix) {
 
 // --- Logger factory ---
 
-function createMethods(prefix) {
-  const logger = (...args) => print("default", args, prefix);
-  logger.info = (...args) => print("info", args, prefix);
-  logger.warn = (...args) => print("warn", args, prefix);
-  logger.error = (...args) => print("error", args, prefix);
-  logger.success = (...args) => print("success", args, prefix);
+function createMethods(prefix, target) {
+  const logger = (...args) => print("default", args, prefix, target);
+  logger.info = (...args) => print("info", args, prefix, target);
+  logger.warn = (...args) => print("warn", args, prefix, target);
+  logger.error = (...args) => print("error", args, prefix, target);
+  logger.success = (...args) => print("success", args, prefix, target);
   return logger;
 }
 
-export function logScope(prefix) {
-  return createMethods(prefix);
+export function logScope(prefix, { target = "dev" } = {}) {
+  return createMethods(prefix, target);
 }
 
 // --- Group ---
@@ -159,9 +210,9 @@ export function logScope(prefix) {
 export async function logGroup(
   label,
   callback,
-  { collapsed = false, prefix } = {}
+  { collapsed = false, prefix, target = "dev" } = {}
 ) {
-  if (!isDev || !isAllowed(prefix)) return await callback();
+  if (!reaches(target, prefix) || !isAllowed(prefix)) return await callback();
 
   const title = prefix ? `[${prefix}] ${label}` : label;
   const groupFn = collapsed ? "groupCollapsed" : "group";
@@ -184,5 +235,5 @@ export async function logGroup(
 
 // --- Default logger ---
 
-export const log = createMethods(null);
+export const log = createMethods(null, "dev");
 export default log;
