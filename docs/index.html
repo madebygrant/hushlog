@@ -6,7 +6,7 @@
     <title>hushlog — loud in dev, silent in prod</title>
     <meta
       name="description"
-      content="hushlog is a console logger for development. Styled, scoped output while you build; nothing at all once you ship."
+      content="hushlog is a console logger for development. Styled, scoped output while you build; nothing once you ship, unless you tell a server to speak."
     />
     <meta name="theme-color" content="#EDEBEF" />
     <link
@@ -17,7 +17,7 @@
     <meta property="og:title" content="hushlog" />
     <meta
       property="og:description"
-      content="Loud in dev. Silent in prod. A console logger that suppresses itself outside development."
+      content="Loud in dev. Silent in prod. Unless you tell a server to speak."
     />
     <meta property="og:type" content="website" />
 
@@ -127,9 +127,11 @@
         justify-content: space-between;
         gap: 1rem;
         padding: 0.7rem var(--pad);
+        background-color: var(--paper);
         background: color-mix(in srgb, var(--paper) 88%, transparent);
         backdrop-filter: blur(10px);
         border-bottom: 1px solid var(--rule);
+        z-index: 99
       }
 
       .wordmark {
@@ -685,7 +687,7 @@
 
   <body>
     <header class="topbar">
-      <a class="wordmark" href="#top">hushlog<span class="dim"> 1.3.0</span></a>
+      <a class="wordmark" href="#top">hushlog<span class="dim"> 1.4.0</span></a>
       <button class="install" id="copy" type="button">
         npm install hushlog
         <span class="install-state" id="copy-state">copy</span>
@@ -697,9 +699,8 @@
         <p class="eyebrow">console logger · zero dependencies</p>
         <h1>Loud in dev.<br /><span class="quiet">Silent in prod.</span></h1>
         <p class="lede">
-          hushlog prints styled, scoped output while you build, and nothing at
-          all once you ship. No flags, no build step, no stripping imports back
-          out.
+          Styled, scoped output while you build. Nothing once you ship, unless
+          you tell a server to speak. No flags, no build step.
         </p>
 
         <div class="switch">
@@ -723,8 +724,8 @@
         </div>
 
         <p class="note" style="margin-top: 1.15rem">
-          Flip the switch. Every console on this page goes quiet, because that is
-          the whole library.
+          Flip the switch. Silence is the default &mdash; servers can ask for an
+          exception.
         </p>
       </section>
 
@@ -853,6 +854,80 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
       </section>
 
       <section class="band col">
+        <p class="eyebrow">server logs</p>
+        <h2>Production output, terminal only</h2>
+        <p>
+          Server-rendered apps often want production logs where a hosted
+          collector can read them, while the browser stays silent. Mark a scope
+          <code>target: "server"</code> and it survives into production on the
+          server &mdash; and only there.
+        </p>
+
+        <pre><span class="t-key">const</span> dbLog <span class="t-pun">=</span> <span class="t-fn">logScope</span><span class="t-pun">(</span><span class="t-str">"db"</span><span class="t-pun">, {</span> target<span class="t-pun">:</span> <span class="t-str">"server"</span> <span class="t-pun">});</span>
+<span class="t-key">const</span> uiLog <span class="t-pun">=</span> <span class="t-fn">logScope</span><span class="t-pun">(</span><span class="t-str">"ui"</span><span class="t-pun">);</span> <span class="t-com">// dev only, the default</span>
+
+dbLog<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun">(</span><span class="t-str">"Query failed:"</span><span class="t-pun">,</span> err<span class="t-pun">);</span> <span class="t-com">// dev, and production stdout</span>
+<span class="t-fn">uiLog</span><span class="t-pun">(</span><span class="t-str">"Modal opened"</span><span class="t-pun">);</span> <span class="t-com">// dev only</span></pre>
+
+        <div class="chips" role="group" aria-label="Server environment flag">
+          <button class="chip" type="button" data-server-flag="1" aria-pressed="true">
+            HUSHLOG_SERVER=1
+          </button>
+          <button class="chip" type="button" data-server-flag="unset" aria-pressed="false">
+            unset
+          </button>
+        </div>
+
+        <div class="console" data-console="server" data-env-lock="production-server">
+          <div class="console-bar">
+            <span>server stdout</span>
+            <span><span class="env">production</span> · <span data-count>0 lines</span></span>
+          </div>
+          <div class="console-body" data-body aria-live="polite"></div>
+        </div>
+
+        <p class="note" style="margin-top: 1.15rem">
+          This one is pinned to production, so the switch at the top of the page
+          does not reach it. <code>[ui]</code> is still in the code either way
+          &mdash; it just never gets here.
+        </p>
+
+        <div class="runs">
+          <div>
+            <h3>Two switches</h3>
+            <p>
+              The deploy sets <code>HUSHLOG_SERVER=1</code>; the code sets
+              <code>target</code>. Both must agree, so ops can silence
+              production without a code change.
+            </p>
+          </div>
+          <div>
+            <h3>The browser never sees it</h3>
+            <p>
+              <code>HUSHLOG_SERVER</code> is read from
+              <code>process.env</code> only, so bundlers inline it as
+              <code>undefined</code> in client builds. Workers count as browser.
+            </p>
+          </div>
+          <div>
+            <h3>Change it without touching code</h3>
+            <p>
+              <code>setServerLogScopes("db", "auth")</code> overrides every
+              target at once &mdash; process-wide, so set it at boot rather than
+              per request. <code>setLogFilter</code> still applies on top.
+            </p>
+          </div>
+          <div>
+            <h3>Before you turn it on</h3>
+            <p>
+              Production output leaves the box for your log store, and nothing
+              is tree-shaken &mdash; keep secrets out either way.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="band col">
         <p class="eyebrow">environment</p>
         <h2>It works out what dev means</h2>
         <p>
@@ -905,10 +980,12 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
             </p>
           </div>
           <div class="api-row">
-            <code>logScope(prefix)</code>
+            <code>logScope(prefix, options?)</code>
             <p>
               Returns a logger that tags every message with
-              <code>[prefix]</code>.
+              <code>[prefix]</code>. <code>target</code> is
+              <code>"dev"</code> or <code>"server"</code>, default
+              <code>"dev"</code>.
             </p>
           </div>
           <div class="api-row">
@@ -919,11 +996,18 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
             </p>
           </div>
           <div class="api-row">
+            <code>setServerLogScopes(...prefixes)</code>
+            <p>
+              Overrides every logger's <code>target</code>, choosing which
+              prefixes reach production server output. No arguments clears it.
+            </p>
+          </div>
+          <div class="api-row">
             <code>logGroup(label, callback, options?)</code>
             <p>
               Groups the callback's output. Options are
-              <code>collapsed</code> and <code>prefix</code>. Returns the
-              callback's result.
+              <code>collapsed</code>, <code>prefix</code> and
+              <code>target</code>. Returns the callback's result.
             </p>
           </div>
         </div>
@@ -940,7 +1024,7 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
 
     <footer class="footer">
       <div class="footer-inner">
-        <span>hushlog 1.3.0</span>
+        <span>hushlog 1.4.0</span>
         <a href="https://www.npmjs.com/package/hushlog">npm</a>
         <a href="https://github.com/madebygrant/hushlog">GitHub</a>
         <span class="spacer"></span>
@@ -977,6 +1061,22 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
               data: '{ id: 4102, email: "ada@example.com" }',
             },
             { level: "error", prefix: "auth", text: "Invalid credentials" },
+          ],
+          server: [
+            {
+              level: "error",
+              prefix: "db",
+              text: "Query failed:",
+              data: "timeout after 5000ms",
+              target: "server",
+            },
+            {
+              level: "info",
+              prefix: "db",
+              text: "Retrying once",
+              target: "server",
+            },
+            { level: "default", prefix: "ui", text: "Modal opened" },
           ],
           filter: [
             { level: "default", prefix: "auth", text: "Session established" },
@@ -1023,6 +1123,9 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
           return filters.includes(prefix);
         };
 
+        /* The server console is pinned to production; the page switch skips it */
+        let serverFlag = true;
+
         const consoles = [...document.querySelectorAll("[data-console]")];
 
         function render(el) {
@@ -1031,6 +1134,11 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
           const count = el.querySelector("[data-count]");
           const envLabel = el.querySelector(".env");
           const prod = root.dataset.env === "production";
+
+          if (el.dataset.envLock === "production-server") {
+            renderServer(body, count, envLabel);
+            return;
+          }
 
           envLabel.textContent = prod ? "production" : "development";
 
@@ -1072,6 +1180,29 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
           count.textContent = visible === 1 ? "1 line" : `${visible} lines`;
         }
 
+        function renderServer(body, count, envLabel) {
+          envLabel.textContent = serverFlag
+            ? "production · server"
+            : "production";
+
+          const lines = serverFlag
+            ? SESSIONS.server.filter((l) => l.target === "server")
+            : [];
+
+          if (lines.length === 0) {
+            body.innerHTML =
+              '<span class="hushed">HUSHLOG_SERVER unset — output suppressed</span>';
+            count.textContent = "0 lines";
+            return;
+          }
+
+          body.innerHTML =
+            lines.map((l, i) => lineHTML(l, i)).join("") +
+            '<span class="line"><span class="caret"></span></span>';
+          count.textContent =
+            lines.length === 1 ? "1 line" : `${lines.length} lines`;
+        }
+
         const renderAll = () => consoles.forEach(render);
 
         /* Environment switch — the one control that matters */
@@ -1090,16 +1221,28 @@ log<span class="t-pun">.</span><span class="t-fn">error</span><span class="t-pun
           });
         });
 
-        document.querySelectorAll(".chip").forEach((chip) => {
+        document.querySelectorAll("[data-filter]").forEach((chip) => {
           chip.addEventListener("click", () => {
             const raw = chip.dataset.filter;
             filters = raw === "null" ? [] : raw.split(",");
             document
-              .querySelectorAll(".chip")
+              .querySelectorAll("[data-filter]")
               .forEach((c) =>
                 c.setAttribute("aria-pressed", String(c === chip))
               );
             render(document.querySelector('[data-console="filter"]'));
+          });
+        });
+
+        document.querySelectorAll("[data-server-flag]").forEach((chip) => {
+          chip.addEventListener("click", () => {
+            serverFlag = chip.dataset.serverFlag === "1";
+            document
+              .querySelectorAll("[data-server-flag]")
+              .forEach((c) =>
+                c.setAttribute("aria-pressed", String(c === chip))
+              );
+            render(document.querySelector('[data-console="server"]'));
           });
         });
 
