@@ -6,7 +6,7 @@
     <title>hushlog — loud in dev, silent in prod</title>
     <meta
       name="description"
-      content="hushlog is a console logger for development. Styled, scoped output while you build; silence once you ship, unless your server asks otherwise."
+      content="hushlog is a console logger for development. Styled, scoped output while you build; nothing once you ship, unless you tell a server to speak."
     />
     <meta name="theme-color" content="#EDEBEF" />
     <link
@@ -17,7 +17,7 @@
     <meta property="og:title" content="hushlog" />
     <meta
       property="og:description"
-      content="Loud in dev. Silent in prod. A console logger that suppresses itself outside development, with opt-in server-only logs."
+      content="Loud in dev. Silent in prod. Unless you tell a server to speak."
     />
     <meta property="og:type" content="website" />
 
@@ -699,9 +699,8 @@
         <p class="eyebrow">console logger · zero dependencies</p>
         <h1>Loud in dev.<br /><span class="quiet">Silent in prod.</span></h1>
         <p class="lede">
-          hushlog prints styled, scoped output while you build, and nothing at
-          all once you ship &mdash; unless you ask a server to keep talking. No
-          flags, no build step, no stripping imports back out.
+          Styled, scoped output while you build. Nothing once you ship, unless
+          you tell a server to speak. No flags, no build step.
         </p>
 
         <div class="switch">

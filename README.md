@@ -1,6 +1,6 @@
 # hushlog
 
-Drop-in console logging for development. Silent in production by default, scoped namespacing with runtime filtering — no setup required.
+Drop-in console logging for development. Silent in production unless you tell a server to speak, scoped namespacing with runtime filtering — no setup required.
 
 [Documentation and live demo →](https://madebygrant.github.io/hushlog/)
 
