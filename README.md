@@ -2,6 +2,8 @@
 
 Drop-in console logging for development. Zero output in production, scoped namespacing with runtime filtering — no setup required.
 
+[Documentation and live demo →](https://madebygrant.github.io/hushlog/)
+
 ## Install
 
 ```bash
