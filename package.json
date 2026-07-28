@@ -21,6 +21,9 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test",
+    "release": "gh workflow run 'Publish to npm' -f version=patch",
+    "release:minor": "gh workflow run 'Publish to npm' -f version=minor",
+    "release:major": "gh workflow run 'Publish to npm' -f version=major",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
